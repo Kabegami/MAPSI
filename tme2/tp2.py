@@ -28,16 +28,49 @@ def binomiale(n, p):
             return i
     return n
 
+def N(x, sigma, u=0):
+    l =  1 / (math.sqrt(2*math.pi) * sigma)
+    r = math.exp((-1/2)*(((x-u)/sigma)**2))
+    return l * r
+
+def normale(k, sigma, u=0):
+    if k % 2 == 0:
+        raise ValueError ('Le nombre k doit etre impair')
+    L_yi = []
+    L_xi = []
+    print(4 * sigma)
+    print(1 * k)
+    q = (4 * sigma) / (k * 1.0)
+    x = -2 * sigma
+    print("q : ", q)
+    while x < 2*sigma:
+        y = N(x, sigma, u)
+        L_yi.append(y)
+        L_xi.append(x)
+        x += q
+        #print(x)
+    y = N(x, sigma, u)
+    L_yi.append(y)
+    L_xi.append(x)
+    return L_yi, L_xi
+
+def plot_normale(k, sigma,u=0):
+    yi, xi = normale(k,sigma,u)
+    #print(L)
+    plt.plot(xi, yi)
+    plt.show()
+
 def histogramme_binomiale(n):
     L = []
     for i in range(1000):
         v = binomiale(n, 0.5)
         L.append(v)
     table = np.array(L)
-    res = plt.hist(table, n//2)
+    res = plt.hist(table, n)
     plt.show()
 
 def main():
-    histogramme_binomiale(40)
+    #histogramme_binomiale(20)
+    plot_normale(1001,1)
 
 main()
