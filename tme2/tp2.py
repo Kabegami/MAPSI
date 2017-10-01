@@ -1,7 +1,10 @@
+# coding: utf-8
+
 import random
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 plt.close('all')
 
 def combinaison(k,n):
@@ -38,17 +41,13 @@ def normale(k, sigma, u=0):
         raise ValueError ('Le nombre k doit etre impair')
     L_yi = []
     L_xi = []
-    print(4 * sigma)
-    print(1 * k)
     q = (4 * sigma) / (k * 1.0)
     x = -2 * sigma
-    print("q : ", q)
     while x < 2*sigma:
         y = N(x, sigma, u)
         L_yi.append(y)
         L_xi.append(x)
         x += q
-        #print(x)
     y = N(x, sigma, u)
     L_yi.append(y)
     L_xi.append(x)
@@ -60,17 +59,75 @@ def plot_normale(k, sigma,u=0):
     plt.plot(xi, yi)
     plt.show()
 
-def histogramme_binomiale(n):
+def proba_affine(k, slope, epsilon=0.00001):
+    if k % 2 == 0:
+        raise ValueError('Le nombre k doit etre impair')
+    if abs(slope) > 2.0 /( k*k):
+        raise ValueError('La pente est trop raide : pente max = {}'.format(2.0 / (k * k)))
+    y = []
+    x = []
+    s = 0
+    for xi in range(k):
+        yi = (1.0 / k) + (xi - ((k - 1)/2)) * slope
+        s += yi
+        y.append(yi)
+        x.append(xi)
+    if (s > 1 + epsilon) or (s < 1 - epsilon):
+        raise ValueError('La probabilité ne somme pas à 1 : s = {}'.format(s))
+    return y, x
+
+def plot_affine(k, pente):
+    y,x = proba_affine(k,pente)
+    plt.plot(x,y)
+    plt.show()
+    
+    
+
+def histogramme_binomiale(n,p=0.5):
     L = []
     for i in range(1000):
-        v = binomiale(n, 0.5)
+        v = binomiale(n, p)
         L.append(v)
     table = np.array(L)
     res = plt.hist(table, n)
     plt.show()
 
+def Pxy(x, y):
+    """ float np.array x float np.array -> float np.2D-array """
+    L = []
+    for xi in x:
+        line = []
+        for yi in y:
+            line.append(xi * yi)
+        L.append(line)
+    return np.array(L)
+
+def dessine(P_jointe) :
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    x = np.linspace(-3, 3, P_jointe.shape[0])
+    y = np.linspace(-3, 3, P_jointe.shape[1])
+    print('x : {}, y : {}'.format(x,y))
+    X, Y = np.meshgrid(x, y)
+    print('X : {}, Y : {}'.format(X,Y))
+    ax.plot_surface(X, Y, P_jointe, rstride=1, cstride=1 )
+    ax.set_xlabel('A')
+    ax.set_ylabel('B')
+    ax.set_zlabel('P(A) * P(B) ')
+    plt.show()
+            
+    
 def main():
     #histogramme_binomiale(20)
-    plot_normale(1001,1)
+    #plot_normale(1001,1)
+    #plot_affine(21,0.001)
+    PA = np.array(normale(21,1)[0])
+    #print(PA)
+    PB = np.array(proba_affine(21,0.00001)[0])
+    #print(PB)
+    Pjointe = Pxy(PA, PB)
+    #print(Pjointe)
+    dessine(Pjointe)
+    print(res)
 
 main()
