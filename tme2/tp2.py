@@ -93,7 +93,8 @@ def histogramme_binomiale(n,p=0.5):
     plt.show()
 
 def Pxy(x, y):
-    """ float np.array x float np.array -> float np.2D-array """
+    """ float np.array x float np.array -> float np.2D-array 
+    on fait le produit tensoriel et non le produit matriciel"""
     L = []
     for xi in x:
         line = []
@@ -101,6 +102,37 @@ def Pxy(x, y):
             line.append(xi * yi)
         L.append(line)
     return np.array(L)
+
+def produit_tensoriel(A, B):
+    """ A : matrice, B : matrice """
+    M = []
+    s1 = np.shape(A)
+    s2 = np.shape(B)
+    #A is 1 d
+    L_ai = []
+    L_bi = []
+    if len(s1) == 1:
+        L_ai = A
+    else:
+        for l in A:
+            for ai in l:
+                L_ai.append(ai)
+    if len(s2) == 1:
+        L_bi = B
+    else:
+        for l in B:
+            for bi in l:
+                L_bi.append(bi)
+
+    for ai in L_ai:
+        L = []
+        for bi in L_bi:
+            L.append(ai * bi)
+        M.append(L)
+    return np.array(M)
+        
+    return np.array(M)
+        
 
 def dessine(P_jointe) :
     fig = plt.figure()
@@ -121,13 +153,24 @@ def main():
     #histogramme_binomiale(20)
     #plot_normale(1001,1)
     #plot_affine(21,0.001)
-    PA = np.array(normale(21,1)[0])
+    #PA = np.array(normale(21,1)[0])
     #print(PA)
-    PB = np.array(proba_affine(21,0.00001)[0])
+    #PB = np.array(proba_affine(21,0.00001)[0])
     #print(PB)
-    Pjointe = Pxy(PA, PB)
+    #Pjointe = Pxy(PA, PB)
+    #PA = np.array ( [0.2, 0.7, 0.1] )
+    #PB = np.array ( [0.4, 0.4, 0.2] )
+    #Pjointe = produit_tensoriel(PA, PB)
     #print(Pjointe)
+    n = np.array(normale(21,1)[0])
+    print(n)
+    lin = np.array(proba_affine(21,0.000001)[0])
+    Pjointe = produit_tensoriel(n, lin)
+    #print(Pjointe)
+    
+    # -----------------------
+    # La fonction dessine fonctionne c'est Pxy qui ne marche pas
+    # ----------------------
     dessine(Pjointe)
-    print(res)
 
 main()
