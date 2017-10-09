@@ -276,10 +276,31 @@ def conditional_indep(potential, X, Y, Z, epsilon):
     return not(np.any(b))
 
 def compact_conditional_proba(potential, X, epsilon):
+    #K = toutes les variables sauf X
     K = potential.margSumIn(X.name())
     for xi in potential.variableSequence():
         if conditional_indep(potential, xi, X, K , epsilon):
             K -= xi
+    return potential / k
+
+def create_bayesian_network(proba_jointe, epsilon):
+    liste = {}
+    #copy
+    P = proba_jointe
+    print(P)
+    #bug var est un array de valeur comment parcourir les noms de variables ?
+    for var in proba_jointe.variableSequence():
+        print('var : ', var)
+        Q = compact_conditional_proba(P, var.name(), epsilon)
+        liste.add(Q)
+        print('name : ', var.name)
+        P = P.margSumIm([var.name()])
+    return liste
+
+def test_bayesien():
+    LabelizedVariable, potential = read_file('asia.txt')
+    b = create_bayesian_network(potential, 0.01)
+    gnb.showPotential(b)
     
 
 def gum_part():
@@ -310,7 +331,8 @@ def main():
     #plot_normale(1001,1)
     #plot_affine(21,0.001)
     #independance_conditionnelles()
-    gum_part()
+    #gum_part()
+    test_bayesien()
     
 
 main()
