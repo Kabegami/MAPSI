@@ -113,11 +113,90 @@ def normale_bidim(x, z, t):
     d = ((x - uX) / (sigmaX * 1.0))**2 - 2*p* ((x-uX)*(z-uZ)/ (sigmaX * sigmaZ * 1.0)) + ((z - uZ) / (1.0 * sigmaZ))**2
     mult = (- 1.0 / (2 *(1-p**2))) *d
     return g * math.exp(mult)
-    
-    
 
-def main():
+def Q_i(data, current_params, current_weights):
+    """ float np.2D-array x float np.2D-array x float np.array -> float np.2D-array """
+    Q = []
+    for point in data:
+        alpha0 = current_weights[0] * normale_bidim(point[0], point[1], current_params[0])
+        alpha1 = current_weights[1] * normale_bidim(point[0], point[1], current_params[1])
+        Q0 =  1.0 * alpha0 / (1.0*(alpha0 + alpha1))
+        Q1 = 1.0 * alpha1 / (1.0*(alpha0 + alpha1))
+        Q.append([Q0, Q1])
+    return np.array(Q)
+
+def M_step(data, T, current_params, current_weights):
+    """ np.2D-array x np.2D-array x float np.2D-array x float np.array -> float np.2D-array x float np.array """
+    pi = []
+    params0 = []
+    params1 = []
+    Tsum = T.sum()
+    print(T[:,0])
+    Pi0 = T[:,0].sum() / (1.0 * Tsum)
+    Pi1 = T[:,1].sum() / (1.0 * Tsum)
+    pi.append((Pi0, Pi1))
+    Q0 = T[:, 0]
+    Q1 = T[:, 1]
+    Q0sum = Q0.sum()
+    Q1sum = Q1.sum()
+    #calcul des params des u
+    sx0= 0
+    sz0 = 0
+    sx1 = 0
+    sz1 = 0
+    for i in range(len(Q0)):
+        point = data[i]
+        Qi0 = Q0[i]
+        Qi1 = Q1[i]
+        sx0 += Qi0 * point[0]
+        sz0 += Qi0 * point[1]
+        sx1 += Qi1 * point[0]
+        sz1 += Qi1 * point[1]
+        
+    UX0 = sx0 / (1.0*(T[:,0].sum()))
+    UZ0 = sz0 / (1.0*(T[:,0].sum()))
+
+    params0.append(UX0)
+    params0.append(UZ0)
+
+    UX1 = sx1 / ((1.0*(Q1.sum())))
+    UZ1 = sz1 / ((1.0*(Q1.sum())))
+
+    params1.append(UX1)
+    params1.append(UZ1)
+
+    siX0 = 0
+    siX1 = 0
+    siZ0 = 0
+    siZ1 = 0
+    for i in range(len(Q0)):
+        point = data[i]
+        Qi0 = Q0[i]
+        Qi1 = Q1[i]
+        siX0 += Qi0 * ((point[0] - UX0)**2)
+        siZ0 += Qi0 * ((point[1] - UZ0)**2)
+        siX1 += Qi1 * ((point[0] - UX1)**2)
+        siZ1 += Qi1 * ((point[1] - UZ1)**2)    
+
+    sigmaX0 = math.sqrt(siX0 / (1.0 * Q0sum))
+    sigmaZ0 = math.sqrt(siZ0 / (1.0 * Q0sum))
+    sigmaX1 = math.sqrt(siX1 / (1.0 * Q1sum))
+    sigmaZ1 = math.sqrt(siZ1 / (1.0 * Q1sum))    
+    params0.append(sigmaX0)
+    params0.append(sigmaZ0)
+    params1.append(sigmaX1)
+    params1.append(sigmaZ1)
+
+    for i in range(len(Q0)):
+        point = data[i]
+        Qi0 = Q0[i]
+        Qi1 = Q1[i]
+    
+    #print('{} {}'.format(Pi0, Pi1))
+
+def affiche_volcan():
     data = read_file ( "2015_tme4_faithful.txt" )
+    print('data : ', data[0])
     # affichage des données : calcul des moyennes et variances des 2 colonnes
     mean1 = data[:,0].mean()
     mean2 = data[:,1].mean()
@@ -137,5 +216,15 @@ def main():
     dessine_normales ( data, params, weights, bounds, ax )
     #affichage incorect, il doit y avoir un probleme dans les parametres des gaussiennes
     plt.show ()
+
+
+def main():
+    data = read_file ( "2015_tme4_faithful.txt" )
+    current_params = array([(2.51460515, 60.12832316, 0.90428702, 11.66108819, 0.86533355),
+                        (4.2893485,  79.76680985, 0.52047055,  7.04450242, 0.58358284)])
+    current_weights = array([ 0.45165145,  0.54834855])
+    Q = Q_i ( data, current_params, current_weights )
+    M_step(data, Q, current_params, current_weights)
+    #print(T)
 
 main()
