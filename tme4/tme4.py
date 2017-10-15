@@ -102,6 +102,16 @@ def find_bounds ( data, params ):
 
     return ( x_min, x_max, z_min, z_max )
 
+def find_video_bounds (data, res_EM ):
+    bounds = np.asarray ( find_bounds ( data, res_EM[0][0] ) )
+    for param in res_EM:
+        new_bound = find_bounds ( data, param[0] )
+        for i in [0,2]:
+            bounds[i] = min ( bounds[i], new_bound[i] )
+        for i in [1,3]:
+            bounds[i] = max ( bounds[i], new_bound[i] )
+    return bounds
+
 
 # -------------------------------------------------------------------------
 # FIN DES FONCTION DU PROF
@@ -131,10 +141,10 @@ def M_step(data, T, current_params, current_weights):
     params0 = []
     params1 = []
     Tsum = T.sum()
-    print(T[:,0])
     Pi0 = T[:,0].sum() / (1.0 * Tsum)
     Pi1 = T[:,1].sum() / (1.0 * Tsum)
-    pi.append((Pi0, Pi1))
+    pi.append(Pi0)
+    pi.append(Pi1)
     Q0 = T[:, 0]
     Q1 = T[:, 1]
     Q0sum = Q0.sum()
@@ -187,16 +197,71 @@ def M_step(data, T, current_params, current_weights):
     params1.append(sigmaX1)
     params1.append(sigmaZ1)
 
+    s0 = 0
+    s1 = 0
     for i in range(len(Q0)):
         point = data[i]
         Qi0 = Q0[i]
         Qi1 = Q1[i]
+        s0 += Qi0 * (((point[0] - UX0)*(point[1] - UZ0)) / (1.0 * sigmaX0 * sigmaZ0))
+        s1 += Qi1 * (((point[0] - UX1)*(point[1] - UZ1)) / (1.0 * sigmaX1 * sigmaZ1))
+
+    s0 /= (1.0* Q0sum)
+    s1 /= (1.0 * Q1sum)
+    params0.append(s0)
+    params1.append(s1)
+    return np.array([params0, params1]), np.array(pi)
+
+def EM(data):
+    mean1 = data[:,0].mean ()
+    mean2 = data[:,1].mean ()
+    std1  = data[:,0].std ()
+    std2  = data[:,1].std ()
+    fig = plt.figure ()
+    ax = fig.add_subplot(111)
+    params = np.array ( [(mean1 - 0.2, mean2 - 1, std1, std2, 0),
+                     (mean1 + 0.2, mean2 + 1, std1, std2, 0)] )
+    weights = np.array ( [ 0.5, 0.5 ] )
+    bounds = find_bounds(data, params)
+    dessine_normales( data, params, weights, bounds,ax)
+    #les plt.show() affichent seulement la premiere fenetre ...
+    #plt.show()
+    for i in range(4):
+        print(i)
+        Q = Q_i(data, params, weights)
+        params, weights = M_step(data, Q , params, weights)
+        bounds = find_bounds(data, params)
+        dessine_normales( data, params, weights, bounds, ax)
+        #plt.show()
+    #hum affiche un truc bizare
+    print('params finaux')
+    print(params)
+    print('last weights : ')
+    print(weights)
+    plt.show()
+
+
+def EMFinal(data):
+    mean1 = data[:,0].mean ()
+    mean2 = data[:,1].mean ()
+    std1  = data[:,0].std ()
+    std2  = data[:,1].std ()
+    params = np.array ( [(mean1 - 0.2, mean2 - 1, std1, std2, 0),
+                     (mean1 + 0.2, mean2 + 1, std1, std2, 0)] )
+    weights = np.array ( [ 0.5, 0.5 ] )
+    res_EM = []
+    for i in range(20):
+        Q = Q_i(data, params, weights)
+        params, weights = M_step(data, Q , params, weights)
+        res_EM.append((params, weights))
+    return res_EM
+
     
     #print('{} {}'.format(Pi0, Pi1))
 
 def affiche_volcan():
     data = read_file ( "2015_tme4_faithful.txt" )
-    print('data : ', data[0])
+    #print('data : ', data[0])
     # affichage des données : calcul des moyennes et variances des 2 colonnes
     mean1 = data[:,0].mean()
     mean2 = data[:,1].mean()
@@ -223,8 +288,28 @@ def main():
     current_params = array([(2.51460515, 60.12832316, 0.90428702, 11.66108819, 0.86533355),
                         (4.2893485,  79.76680985, 0.52047055,  7.04450242, 0.58358284)])
     current_weights = array([ 0.45165145,  0.54834855])
-    Q = Q_i ( data, current_params, current_weights )
-    M_step(data, Q, current_params, current_weights)
+    #Q = Q_i ( data, current_params, current_weights )
+    #T = M_step(data, Q, current_params, current_weights)
+    #EM(data)
+    res_EM = EMFinal(data)
+    bounds = find_video_bounds ( data, res_EM )
+    import matplotlib.animation as animation
+
+    # création de l'animation : tout d'abord on crée la figure qui sera animée
+    fig = plt.figure ()
+    ax = fig.gca (xlim=(bounds[0], bounds[1]), ylim=(bounds[2], bounds[3]))
+
+    # la fonction appelée à chaque pas de temps pour créer l'animation
+    def animate ( i ):
+        ax.cla ()
+        dessine_normales (data, res_EM[i][0], res_EM[i][1], bounds, ax)
+        ax.text(5, 40, 'step = ' + str ( i ))
+        print "step animate = %d" % ( i )
+
+    # exécution de l'animation
+    anim = animation.FuncAnimation(fig, animate, 
+                               frames = len ( res_EM ), interval=500 )
+    plt.show ()
     #print(T)
 
 main()
