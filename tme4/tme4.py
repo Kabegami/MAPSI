@@ -232,7 +232,7 @@ def EM(data):
         params, weights = M_step(data, Q , params, weights)
         bounds = find_bounds(data, params)
         dessine_normales( data, params, weights, bounds, ax)
-        #plt.show()
+        fig.show()
     #hum affiche un truc bizare
     print('params finaux')
     print(params)
@@ -304,12 +304,12 @@ def main():
         ax.cla ()
         dessine_normales (data, res_EM[i][0], res_EM[i][1], bounds, ax)
         ax.text(5, 40, 'step = ' + str ( i ))
-        print "step animate = %d" % ( i )
+        #print "step animate = %d" % ( i )
+        print ("step animate = {}".format(i))
 
     # exécution de l'animation
     anim = animation.FuncAnimation(fig, animate, 
-                               frames = len ( res_EM ), interval=500 )
+                                   frames = len ( res_EM ), interval=500 )
     plt.show ()
-    #print(T)
 
 main()
