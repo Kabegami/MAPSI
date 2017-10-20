@@ -63,9 +63,32 @@ def create_contingency_table ( data, dico, x, y, z ):
         res[0] = ( data.shape[1], a )
     return res
 
+def sufficient_statistics(data, dico, x, y, z):
+    """ int np.2D-array x dico{string -> int} np.array x int x int x int list -> float """
+    pass
 
-def main():
+
+def main(v=False):
     # names : tableau contenant les noms des variables aléatoires
     # data  : tableau 2D contenant les instanciations des variables aléatoires
     # dico  : tableau de dictionnaires contenant la correspondance (valeur de variable -> nombre)
-    names, data, dico = read_csv ( "2015_tme5_asia.csv" )    
+    #names, data, dico = read_csv ( "2015_tme5_asia.csv" )
+    names, data, dico = read_csv('test.txt')
+    print(data)
+    print('----------------------')
+    #bug
+    v1 = data[:,0]
+    v2 = data[:,2]
+    print(v1)
+    print(v2)
+    print('---------------------')
+    r = np.vstack((v1,v2))
+    print(r.T)
+    resultat = create_contingency_table(r.T, dico, 0, 2, [3])
+    if v:
+        print('names : ', names)
+        print('data : ', data)
+        print('dico : ', dico)
+        print('resultat', resultat)
+
+main(True)
