@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
 
+import pydot        
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 import numpy as np
 import scipy.stats as stats
+import pyAgrum as gum
+import pyAgrum.lib.ipython as gnb
+
+style = { "bgcolor" : "#6b85d1", "fgcolor" : "#FFFFFF" }
 
 # fonction pour transformer les données brutes en nombres de 0 à n-1
 def translate_data ( data ):
@@ -64,6 +71,44 @@ def create_contingency_table ( data, dico, x, y, z ):
         res[0] = ( data.shape[1], a )
     return res
 
+def display_BN ( node_names, bn_struct, bn_name, style ):
+    graph = pydot.Dot( bn_name, graph_type='digraph')
+
+    # création des noeuds du réseau
+    for name in node_names:
+        new_node = pydot.Node( name, 
+                               style="filled",
+                               fillcolor=style["bgcolor"],
+                               fontcolor=style["fgcolor"] )
+        graph.add_node( new_node )
+
+    # création des arcs
+    for node in range ( len ( node_names ) ):
+        parents = bn_struct[node]
+        for par in parents:
+            new_edge = pydot.Edge ( node_names[par], node_names[node] )
+            graph.add_edge ( new_edge )
+
+    # sauvegarde et affaichage
+    outfile = bn_name + '.png'
+    graph.write_png( outfile )
+    img = mpimg.imread ( outfile )
+    plt.imshow( img )
+
+def learn_parameters ( bn_struct, ficname ):
+    # création du dag correspondant au bn_struct
+    graphe = gum.DAG ()
+    nodes = [ graphe.addNode () for i in range ( bn_struct.shape[0] ) ]
+    for i in range ( bn_struct.shape[0] ):
+        for parent in bn_struct[i]:
+            graphe.addArc ( nodes[parent], nodes[i] )
+
+    # appel au BNLearner pour apprendre les paramètres
+    learner = gum.BNLearner ( ficname )
+    learner.useScoreLog2Likelihood ()
+    learner.useAprioriSmoothing ()
+    return learner.learnParameters ( graphe )
+
 #----------------------------------------------------------------------
 #                     MES FONCTIONS
 #----------------------------------------------------------------------
@@ -88,9 +133,11 @@ def calculate_Nyz(resultat, v=False):
     for Rz in resultat:
         L = []
         Txy = Rz[1]
-        print(Txy)
+        if v:
+            print(Txy)
         t = Txy.shape
-        print(t)
+        if v:
+            print(t)
         #on parcours les colonnes
         for j in range(t[1]):
             col = Txy[:,j]
@@ -108,7 +155,7 @@ def correct_variable(x):
 
 def sufficient_statistics(data, dico, x, y, z):
     """ int np.2D-array x dico{string -> int} np.array x int x int x int list -> float """
-    #on construit la loi du X² grace aux tableau de contingence
+    #on construit la statistique d'ajustement grace aux tableau de contingence
     #Ici la loi à vérifier est les données sont indépendantes : donc n*pr = Nz * Ny/ N
     resultat = create_contingency_table(data, dico, x, y, z)
     test = 0
@@ -154,8 +201,65 @@ def indep_score(data, dico, x, y, z):
     if len(data[0]) < dmin:
         return (-1,1)
     else:
-        return stats.chi2.sf(loi, d)
+        return (stats.chi2.sf(loi, d), d)
 
+def best_candidate(data, dico, index_X, L_Z, alpha, debug=False):
+    """int np.2D-array x dico{string -> int} np.array x int x int list x float -> int"""
+    min_candidat = float("inf")
+    index_candidat = None
+    #on calcule les yi d'index < à X
+    for yi in range(index_X):
+        p_value,d  = indep_score(data, dico, index_X, yi, L_Z)
+        if p_value < min_candidat and p_value < alpha:
+            if debug:
+                print("p_value : ", p_value)
+                print("alpha : ", alpha)
+                print("index : ", yi)
+            min_candidat = p_value
+            index_candidat = yi
+    L = []
+    if index_candidat != None:
+        L.append(index_candidat)
+    return L
+
+def create_parents(data, dico, x, alpha,debug=False):
+    z = []
+    r = best_candidate(data, dico , x, z, alpha)
+    cpt = 0
+    while r != []:
+        z += r
+        r = best_candidate(data, dico , x, z, alpha)
+        if debug:
+            print('z : ', z)
+            print('r : ', r)
+            print('cpt : ', cpt)
+        cpt += 1
+    return z
+
+def learn_BN_structure(data, dico, alpha):
+    tab = []
+    for variable in range(len(data)):
+        res = create_parents(data, dico, variable, alpha)
+        tab.append(res)
+    return np.array(tab)
+
+#=====================================================
+#               FONCTIONS DE TEST
+#=====================================================
+
+def test_best_candidate(data, dico):
+    assert best_candidate ( data, dico, 1, [], 0.05 ) == []
+    assert best_candidate ( data, dico, 4, [], 0.05 ) == [1]
+    assert best_candidate ( data, dico, 4, [1], 0.05 ) == []
+    assert best_candidate ( data, dico, 5, [], 0.05 ) == [3]
+    assert best_candidate ( data, dico, 5, [6], 0.05 ) == [3]
+    assert best_candidate ( data, dico, 5, [6,7], 0.05 ) == [2]
+
+def test_create_parents(data, dico):
+    assert create_parents ( data, dico, 1, 0.05 ) == []
+    assert create_parents ( data, dico, 4, 0.05 ) == [1]
+    assert create_parents ( data, dico, 5, 0.05 ) == [3,2]
+    assert create_parents ( data, dico, 6, 0.05 ) == [4,5]    
 
 def main(v=False):
     # names : tableau contenant les noms des variables aléatoires
@@ -163,18 +267,19 @@ def main(v=False):
     # dico  : tableau de dictionnaires contenant la correspondance (valeur de variable -> nombre)
     names, data, dico = read_csv ( "2015_tme5_asia.csv" )
     #names, data, dico = read_csv('test.txt')
-    print(data)
     resultat = create_contingency_table(data, dico, 1, 2, [3])
-    #print('resultat : ', resultat)
-    #N_xz = calculate_Nxz(resultat)
-    #N_yz = calculate_Nyz(resultat)
-    #print('N_xz :', N_xz)
-    #print('N_yz : ', N_yz)
-    #X, d = sufficient_statistics(data, dico, 1, 2, [3])
-    #print('X : ', X)
-    #print('d : ', d)
-    i = indep_score(data, dico, 0,1,[2,3])
-    print('i : ',i)
+    test_best_candidate(data, dico)
+    test_create_parents(data, dico)
+    bn_struct = learn_BN_structure(data, dico,0.05)
+    bn = learn_parameters(bn_struct,"2015_tme5_asia.csv")
+    print('taille : ', bn)
+    gnb.showPotential( bn.cpt ( bn.idFromName ( 'bronchitis?' ) ) )
+    proba = gum.getPosterior ( bn, {}, 'bronchitis?' )
+    print('proba : ', proba)
+    gnb.showPotential( proba )
+    gnb.showPotential(gum.getPosterior ( bn,{'smoking?': 'true', 'tuberculosis?' : 'false' }, 'bronchitis?' ))
+    style = { "bgcolor" : "#6b85d1", "fgcolor" : "#FFFFFF" }
+    display_BN(names , bn_struct, 'BN', style)
     if v:
         print('names : ', names)
         print('data : ', data)
