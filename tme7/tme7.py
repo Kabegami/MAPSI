@@ -92,12 +92,53 @@ def learnHMM(allX, allS, N, K, initTo0=False):
     
     return Pi, A, np.array(M)
 
-def viterbi(X, Pi, A, B):
-    d0 = log(Pi) + log(bi[x[0]])
-    fi0 = -1
-    
+def argMax(vecteur, A,j):
+    maxi = -1 * float('inf')
+    index = None
+    for i in range(len(vecteur)):
+        v = vecteur[i] + math.log(A[i][j])
+        if v > maxi:
+            maxi = v
+            index = i
+    if index == None:
+        ValueError("Il n'y a pas d'index !")
+    return i
 
-        
+def viterbi(X, Pi, A, B):
+    N, K = B.shape
+    print('N, K', B.shape)
+    delta = np.zeros((K,N))
+    psi = np.zeros((K,N))
+    #init
+#    print('Pi : ', Pi)
+#    print('B :' , B)
+    for i in range(N):
+        delta[0][i] = math.log(Pi[i]) + math.log(B[i][X[0]])
+        psi[0][i] = -1
+    print('delta : ',delta)
+    for t in range(1, K):
+#        print('t : ', t)
+        for j in range(N):
+            i_opt = argMax(delta[t-1], A, j)
+            print('i_opt :', i_opt)
+#            print('i_opt : ', i_opt)
+            delta[t][j] = delta[t-1][i_opt] + math.log(A[i_opt][j]) + math.log(B[j][X[t]])
+            psi[t][j] = i_opt
+
+    S = np.max(delta[t])
+    print('delta : ', delta)
+    print('psi : ', psi)
+    print('S : ', S)
+    #backtring
+    s = np.zeros(N)
+    v = np.zeros(N)
+    for t in range(N-1,0,-1):
+        s[t-1] = np.argmax(delta[t-1])
+        #v[t] = psi[t][s[t]]
+    print('s : ', s)
+    print('v : ', v)
+    return delta, psi
+    
         
         
     
@@ -133,5 +174,6 @@ def main():
     print('Pi : ', Pi)
     print('A :', A)
     print('B : ', B)
+    s_est, p_est = viterbi(Xd[0], Pi, A, B)
 
 main()
