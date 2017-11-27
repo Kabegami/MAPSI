@@ -37,6 +37,12 @@ def groupByLabel( y):
         index.append(ind)
     return index
 
+def find_label(i, index):
+    for label in range(len(index)):
+        if i in index[label]:
+            return label
+    ValueError("Le label n'existe pas dans la base d'appprentissage")
+
 def separeTrainTest(y, pc):
     indTrain = []
     indTest = []
@@ -92,56 +98,113 @@ def learnHMM(allX, allS, N, K, initTo0=False):
     
     return Pi, A, np.array(M)
 
-def argMax(vecteur, A,j):
+def argMax(vecteur, A,j,debug=False):
     maxi = -1 * float('inf')
     index = None
     for i in range(len(vecteur)):
+        transition = math.log(A[i][j])
+        if debug:
+            print('j : ', j)
+            print('log transition ', transition)
+            print('A[i] :', A[i])
+            print('A[i][j]', A[i][j])
+            print('vecteur :', vecteur)
         v = vecteur[i] + math.log(A[i][j])
-        if v > maxi:
+        if debug:
+            print('v : ', v)
+            print('maxi :', maxi)
+        if v >= maxi:
             maxi = v
             index = i
     if index == None:
         ValueError("Il n'y a pas d'index !")
-    return i
+    return index
 
-def viterbi(X, Pi, A, B):
+def viterbi(X, Pi, A, B,debug=False):
+    T = len(X)
     N, K = B.shape
-    print('N, K', B.shape)
-    delta = np.zeros((K,N))
-    psi = np.zeros((K,N))
-    #init
-#    print('Pi : ', Pi)
-#    print('B :' , B)
+    if debug:
+        print('N, K', B.shape)
+    # N : etats
+    delta = np.zeros((N,T))
+    psi = np.zeros((N,T))
+    if debug:
+        print('Pi taille :', Pi.shape)
     for i in range(N):
-        delta[0][i] = math.log(Pi[i]) + math.log(B[i][X[0]])
-        psi[0][i] = -1
-    print('delta : ',delta)
-    for t in range(1, K):
-#        print('t : ', t)
+        delta[i][0] = math.log(Pi[i]) + math.log(B[i][X[0]])
+        psi[i][0] = -1
+    if debug:
+        print('delta : ',delta)
+    for t in range(1, T):
+        #A chaque pas de temps
         for j in range(N):
-            i_opt = argMax(delta[t-1], A, j)
-            print('i_opt :', i_opt)
-#            print('i_opt : ', i_opt)
-            delta[t][j] = delta[t-1][i_opt] + math.log(A[i_opt][j]) + math.log(B[j][X[t]])
-            psi[t][j] = i_opt
+            #Pour chaque etat
+            pred = delta[:, t-1]
+            if debug:
+                print('pred : ', pred)
+                print('A ', A)
+            i_opt = argMax(pred, A, j,False)
+            #on trouve son meilleur predecesseur
+            if debug:
+                print('i_opt :', i_opt)
+            delta[j][t] = (delta[i_opt][t-1] + math.log(A[i_opt][j])) + math.log(B[j][X[t]])
+            psi[j][t] = i_opt
+    if debug:
+        print('delta :', delta)
 
-    S = np.max(delta[t])
-    print('delta : ', delta)
-    print('psi : ', psi)
-    print('S : ', S)
+    S = np.max(delta[:,T-1])
+    if debug:
+        print('S : ', S)
     #backtring
-    s = np.zeros(N)
-    v = np.zeros(N)
-    for t in range(N-1,0,-1):
-        s[t-1] = np.argmax(delta[t-1])
-        #v[t] = psi[t][s[t]]
-    print('s : ', s)
-    print('v : ', v)
-    return delta, psi
+    s = np.zeros(T)
+    s[T-1] = np.argmax(delta[:,t])
+    for t in range(T-2,1,-1):
+        s[t] = psi[:,t+1][int(s[t+1])]
+    if debug:
+        print('s : ', s)
+    return S, s
+
+def printModel(M):
+    print('==================== MODEL ===================')
+    print(' pi : ',M[0])
+    print('----------------------------------------------')
+    print(' A : ', M[1])
+    print('----------------------------------------------')
+    print(' B : ' ,M[2])
+    print('==============================================')
     
+
+def Baum_Welch(X, Y, N, K):
+    #initialisation
+    S = initGD(X,N)
+    index = groupByLabel(Y)
+    converge = False
+    cpt = 0
+    old = float('inf')
+    #print('S : ', S)
+    #initialisation
+    while not(converge):
+        models = []
+        L = 0
+        for lettre in range(len(np.unique(Y))):
+            M = learnHMM(X[index[lettre]], S[index[lettre]], N, K)
+            models.append(M)
+        #on parcours la base d'apprentissage
+        for i in range(len(X)):
+            xi = X[i]
+            M =  models[find_label(i, index)]
+            proba, s = viterbi(xi , M[0], M[1], M[2])
+            S[i] = s.astype(int)
+            L += proba
+        if (old - L) / (1.0*old) < math.exp(-4):
+            converge = True
+        old = L
+        print('iteration numero : ', cpt)
+        print('vraisemblance :' ,old)
+    return models, S
         
         
-    
+
 def main():
     with open('lettres.pkl', 'rb') as f:
         data = pkl.load(f, encoding='latin1')
@@ -174,6 +237,11 @@ def main():
     print('Pi : ', Pi)
     print('A :', A)
     print('B : ', B)
-    s_est, p_est = viterbi(Xd[0], Pi, A, B)
+    #le resultat est légèrement différent !
+    s_est, p_est = viterbi(Xd[0], Pi, A, B,True)
+    print(s_est)
+    print(p_est)
+    #print('=============================================================')
+    Baum_Welch(Xd, Y, N, K)
 
 main()
