@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import random
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle as pkl
@@ -8,18 +9,15 @@ import math
 np.set_printoptions(precision=2, linewidth=320,suppress=True)
 plt.close('all')
 
-def tracerLettre(let, name="exlettre.png"):
-    a = -let*np.pi/180; # conversion en rad
-    coord = np.array([[0, 0]]); # point initial
+def tracerLettre(let):
+    a = -let*np.pi/180;
+    coord = np.array([[0, 0]]);
     for i in range(len(a)):
         x = np.array([[1, 0]]);
         rot = np.array([[np.cos(a[i]), -np.sin(a[i])],[ np.sin(a[i]),np.cos(a[i])]])
         xr = x.dot(rot) # application de la rotation
         coord = np.vstack((coord,xr+coord[-1,:]))
-    plt.figure()
     plt.plot(coord[:,0],coord[:,1])
-    plt.savefig("images/" + name)
-    plt.show()
     return
 
 def discretise(X, d):
@@ -196,14 +194,77 @@ def Baum_Welch(X, Y, N, K):
             proba, s = viterbi(xi , M[0], M[1], M[2])
             S[i] = s.astype(int)
             L += proba
-        if (old - L) / (1.0*old) < math.exp(-4):
+        if old == float('inf'):
+            pass
+        elif (old - L) / (1.0*old) < math.exp(-4):
             converge = True
         old = L
         print('iteration numero : ', cpt)
         print('vraisemblance :' ,old)
-    return models, S
+        cpt += 1
+    return models
         
-        
+def predict(xi, models):
+    maxi = -1* float('inf')
+    index = None
+    for lettre in range(len(models)):
+        M = models[lettre]
+        proba, s = viterbi(xi.astype(int), M[0], M[1], M[2])
+        if proba > maxi:
+            maxi = proba
+            index = lettre
+    return maxi, index
+
+def accuracy(X, Y, models):
+    K = len(X)
+    Ynum = np.zeros(Y.shape)
+    accuracy = 0
+    vPred = np.zeros(K)
+    for num,char in enumerate(np.unique(Y)):
+        Ynum[Y == char] = num
+    for i in range(K):
+        xi = X[i]
+        pred = predict (xi, models)[1]
+        vPred[i] = pred
+    a =  np.where(vPred != Ynum, 0.,1.).mean()
+    print('accuracy : {} %'.format( a * 100))
+    return a, vPred, Ynum
+
+def draw(conf,Y):
+    plt.figure()
+    plt.imshow(conf, interpolation='nearest')
+    plt.colorbar()
+    plt.xticks(np.arange(26),np.unique(Y))
+    plt.yticks(np.arange(26),np.unique(Y))
+    plt.xlabel(u'Vérité terrain')
+    plt.ylabel(u'Prédiction')
+    plt.savefig("mat_conf_lettres.png")
+
+def random_proba(P):
+    """ la proba P est deja sous cumsum normalement """
+    r = random.random()
+    for i in range(len(P)):
+        if r <= P[i]:
+            return i
+    return len(P) - 1
+    
+def generateHMM(Pi, A,B, datatype, longueur=10):
+    sequence = []
+    X = []
+    so = random_proba(Pi)
+    sequence.append(so)
+    xo = random_proba(B[so])
+    cpt =0
+    previous = so
+    while cpt < longueur:
+        cpt += 1
+        si = random_proba(A[previous])
+        xi = random_proba(B[si])
+        previous = si
+        sequence.append(si)
+        X.append(xi)
+    return sequence, X
+    
 
 def main():
     with open('lettres.pkl', 'rb') as f:
@@ -238,10 +299,36 @@ def main():
     print('A :', A)
     print('B : ', B)
     #le resultat est légèrement différent !
-    s_est, p_est = viterbi(Xd[0], Pi, A, B,True)
+    s_est, p_est = viterbi(Xd[0], Pi, A, B)
     print(s_est)
     print(p_est)
     #print('=============================================================')
-    Baum_Welch(Xd, Y, N, K)
+    models = Baum_Welch(Xtrain, Ytrain, N, K)
+    a,pred, Ynum = accuracy(Xtest,Ytest,models)
+    conf = np.zeros((26,26))
+    for i in range(len(Ynum)):
+        conf[int(pred[i])][int(Ynum[i])] += 1
+    draw(conf,Ynum)
+    #================================================================
+    #          PARTIE GENERATIVE (OPTIONNELLE)
+    #================================================================
+    n = 3          # nb d'échantillon par classe
+    nClred = 5   # nb de classes à considérer
+    fig = plt.figure()
+    for cl in range(nClred):
+        Pic = models[cl][0].cumsum() # calcul des sommes cumulées pour gagner du temps
+        Ac = models[cl][1].cumsum(1)
+        Bc = models[cl][2].cumsum(1)
+        long = np.floor(np.array([len(x) for x in Xd[itrain[cl]]]).mean()) # longueur de seq. à générer = moyenne des observations
+        for im in range(n):
+            s,x = generateHMM(Pic, Ac, Bc, int(long))
+            intervalle = 360./d  # pour passer des états => angles
+            newa_continu = np.array([i*intervalle for i in x]) # conv int => double
+            sfig = plt.subplot(nClred,n,im+n*cl+1)
+            sfig.axes.get_xaxis().set_visible(False)
+            sfig.axes.get_yaxis().set_visible(False)
+            tracerLettre(newa_continu)
+    plt.savefig("lettres_hmm.png")
+    plt.show()
 
 main()
