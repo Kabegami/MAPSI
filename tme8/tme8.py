@@ -78,8 +78,12 @@ model1.emissionprob = (B_m1)
 
 #la methode model1.decode demande un appel de la fonction fit
 #fit sert à initialiser avant l'algorithme EM
-#model1 = model1.fit(Genome.reshape(-1,1))
-vsbce, pred = model1.decode(Genome)
+#on transforme genome pour avoir le bon format
+g = Genome.reshape(-1,1)
+print('g : ' , g)
+print('g shape' , g.shape)
+model1 = model1.fit(g)
+vsbce, pred = model1.decode(g)
 sp = pred
 sp[np.where(sp>=1)] = 1
 percpred1 = float(np.sum(sp == Anotation ) / len(Annotation))
