@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import random
 import math
 import numpy as np
 import pickle as pkl
@@ -39,8 +40,11 @@ def groupByLabel( y):
         index.append(ind)
     return index
 
-def learnMarkovModel(Xc, d):
-    A = np.zeros((d,d))
+def learnMarkovModel(Xc, d,init=False):
+    if init:
+        A = np.ones((d,d))
+    else:
+        A = np.zeros((d,d))/10**(-3)
     Pi = np.zeros(d)
     for x in Xc:
         #on parcours la base d'apprentissage
@@ -92,7 +96,22 @@ def verif_log_proba(Xd, models):
     P = np.array(P)
     print('P : ', P)
 
-def separate_data_version(d):
+def graphe_accuracy_d(d_init, step, n,v=False):
+    X = []
+    Y = []
+    xi = d_init
+    while xi < n + step:
+        X.append(xi)
+        Y.append(separate_data_version(xi,v)[0])
+        xi += step
+    plt.plot(X,Y)
+    plt.xlabel("discretisation d")
+    plt.ylabel("accuracy")
+    plt.show()
+
+def separate_data_version(d, v=False):
+    """ accuracy en initialisant la matrice A avec des 0 : 31 % 
+        accuracy en initialisant la matrice A avec des 1 : 70 %"""
     itrain,itest = separeTrainTest(Y,0.8)
     #fusion des indices
     ia = []
@@ -101,7 +120,7 @@ def separate_data_version(d):
     it = []
     for i in itest:
         it += i.tolist()
-    print('ia : ', ia)
+#    print('ia : ', ia)
     Xtrain = []
     Xtest = []
     Xd = discretise(X, d)
@@ -119,20 +138,80 @@ def separate_data_version(d):
     #print('Ytrain : ', Ytrain)
     #print('Xtrain : ', Xtrain)
     models = []
+    Pi_sum = np.zeros(d)
     for cl in range(len(np.unique(Y))):
         #probleme, index[cl] contient aussi les index appartenant à Xtest
-        models.append(learnMarkovModel(Xtrain[index[cl]], d))
-    proba = np.array([[probaSequence(Xtest[i], models[cl][0], models[cl][1]) for i in range(len(Xtest))]for  cl in range(len(np.unique(Y)))])
-    print('proba : ', proba)
-    Ynum = np.zeros(Y.shape)
+        models.append(learnMarkovModel(Xtrain[index[cl]], d,init=True))
+
+    Pi_sum = np.zeros(d)
+    for (Pi, A) in models:
+        Pi_sum += Pi
+    Pi_sum = Pi_sum / (1.0*len(Xtrain))
+    #max de vraisemblance
+    proba = np.array([[probaSequence(Xtest[i], models[cl][0], models[cl][1]) for i in range(len(Xtest))]for  cl in range(len(np.unique(Ytest)))])
+    #print('proba : ', proba)
+    #evaluation
+    Ynum = np.zeros(Ytest.shape)
     for num,char in enumerate(np.unique(Ytest)):
         #il faut faire en sorte de ne pas avoir de problème d'index (mettre Ytest bug)
-        Ynum[Y==char] = num
+        Ynum[Ytest==char] = num
 
     pred = proba.argmax(0) # max colonne par colonne
-    
-    print ('acuracy : ', np.where(pred != Ynum, 0.,1.).mean())
 
+    accuracy =  np.where(pred != Ynum, 0.,1.).mean()
+    
+    if v:
+        print ('acuracy : ', accuracy)
+    return accuracy, proba, Ynum, Pi_sum
+
+def draw():
+    conf = np.zeros((26,26))
+    accuracy, proba, Ynum, Pi_sum = separate_data_version(20)
+    pred = proba.argmax(0)
+    for i in range(len(Ynum)):
+        print('pred i', pred[i])
+        print('Ynum i', Ynum[i])
+        conf[int(pred[i])][int(Ynum[i])] += 1
+    plt.figure()
+    plt.imshow(conf, interpolation='nearest')
+    plt.colorbar()
+    plt.xticks(np.arange(26),np.unique(Y))
+    plt.yticks(np.arange(26),np.unique(Y))
+    plt.xlabel(u'Vérité terrain')
+    plt.ylabel(u'Prédiction')
+    plt.savefig("graphes/mat_conf_lettres.png")
+
+def random_proba(Pi):
+    sc = np.cumsum(Pi)
+    r = random.random()
+    for i in range(len(sc)):
+        if r <= sc[i]:
+            return i
+    return len(sc) - 1
+    
+def generate(Pi, A, longeur):
+    sequence = []
+    so = random_proba(Pi)
+    sequence.append(so)
+    cpt = 0
+    previous = so
+    while cpt < longeur:
+        cpt +=1
+        si = random_proba(A[previous])
+        previous = si
+        sequence.append(si)
+    print('sequence :', sequence)
+    return sequence
+
+def genere_alphabet(models,k,d):
+    intervalle = 360./d # pour passer des états => valeur d'angles
+    for m in models:
+        s = generate(m[0], m[1],k)
+        s_continu =  np.array([i*intervalle for i in s])
+        tracerLettre(s_continu)
+        
+    
+    
 def main():
     d=20
     Xd = discretise(X, d)
@@ -160,7 +239,14 @@ def main():
     
     print ('acuracy : ', np.where(pred != Ynum, 0.,1.).mean())
     separate_data_version(d)
-
+    graphe_accuracy_d(1,1,20,True)
+    draw()
+    #genere_alphabet(models, 25,d)
+    newa = generate(models[0][0],models[0][1], 25) # generation d'une séquence d'états
+    intervalle = 360./d # pour passer des états => valeur d'angles
+    newa_continu = np.array([i*intervalle for i in newa]) # conv int => double
+    print('lettre :', newa_continu)
+    tracerLettre(newa_continu)
     plt.show()
 
 main()
