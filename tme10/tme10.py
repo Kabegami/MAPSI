@@ -191,6 +191,13 @@ def partie1():
 #               REAL DATA
 #============================================================
 
+def analytique_mc(X,Y):
+    A = np.dot(X.T, X)
+    B = np.dot(X.T, Y)
+    #np.linag.solve attend des array de dimention 2
+    w = np.linalg.solve(A,B)
+    return w
+
 def adaline(X,Y,n=10000,epsilon=10**(-5), h=10**(-3)):
     """Pour 10000 iterations avec epsilon = 10^-5 et h = 10 ^-3 on a 45 % d'accuracy """
     w = np.zeros(X.shape[1])
@@ -205,7 +212,7 @@ def adaline(X,Y,n=10000,epsilon=10**(-5), h=10**(-3)):
             C /= h
             #print('C :', C)
             w[j] = w[j] - epsilon * C
-    return w
+    return w    
 
 def accuracy(X,Y,W):
     cpt = 0
@@ -242,8 +249,11 @@ def real_data():
     #creation du biais
     N = len(X)
     Xb = np.hstack((X,np.ones((N,1))))
-    w = adaline(Xb,Y)
-    acc = accuracy(Xb,Y,w)
+    N2 = len(XT)
+    XTb = np.hstack((XT,np.ones((N2,1))))
+    #w = adaline(Xb,Y)
+    w = analytique_mc(Xb,Y)
+    acc = accuracy(XTb,YT,w)
     print('accuracy : ', acc)
     print('W :', w)
 
