@@ -39,12 +39,20 @@ def draw(X,Y):
 def Mdraw(X,Y,model, l=None):
     plt.plot(X,Y, 'ro')
     if l is not None:
-        plt.plot(X,model, 'b+', label=l)
+        plt.plot(X,model, label=l)
         plt.legend()
     else:
         plt.plot(X,model)
     plt.show()
 
+def Mdraw2(X,Y,model, l=None):
+    plt.plot(X,Y, 'ro')
+    if l is not None:
+        plt.plot(X,model, 'b+', label=l)
+        plt.legend()
+    else:
+        plt.plot(X,model)
+    plt.show()
 def E(X):
     return (sum(X) / float(len(X)))
         
@@ -102,23 +110,19 @@ def cout_carree(x, y, w):
 
 
 def descente_gradient(x,y, n=30, cout=cout_carree, epsilon=5*10**(-3), h=10**(-3)):
-    """ Soit C la fonction cout par defaut on a C = somme(ei) avec ei la diff au carre """
+    """ Soit C la fonction cout par defaut on a C = somme(ei) avec ei la diff au carre
+    derivée de cout carré : 2 * Xt ( X * D - Y) """
     w = np.zeros(x.shape[1])
     print('w : ', w)
     e0 = cout(x,y,w)
     #print('e0 : ', e0)
     allw = [w]
+    Xt = x.T
     #print('w : ', w)
     #print('vh :' , vh)
     for j in range(n):
         #calcul de dérivée numérique
-        d = []
-        for i in range(0, x.shape[1]):
-            w2 = w.copy()
-            w2[i] += h
-            v = (cout(x,y,w2) - cout(x,y,w)) / h
-            d.append(v)
-        d = np.array(d)
+        d = 2 *np.dot( Xt, (np.dot(x,w) - y))
         print('d : ', d)
         w = w - epsilon * d
         allw.append(w)
@@ -155,12 +159,14 @@ def mc2(X2,Y2):
     #np.linag.solve attend des array de dimention 2
     w = np.linalg.solve(A,B)
     print('w : ', w)
-    return w[0], w[1], w[2]
+    r = cout_carree(X,Y2,w)
+    return w[0], w[1], w[2], r
 
 def test_methode(X,Y, f):
     a, b  = f(X,Y)
     model = [ a* xi + b for xi in X]
     Mdraw(X,Y,model,f.__name__)
+    
     
 def partie1():
     a = 6.
@@ -183,10 +189,11 @@ def partie1():
 
     X2, Y2 = toy_data2(a,b,0,N,sig)
 #    draw(X2, Y2)
-    a,b,c = mc2(X2, Y2)
+    a,b,c, reconstruction = mc2(X2, Y2)
     model = [a * (xi**2) + b * xi + c for xi in X2]
     print('model : ', model)
-    Mdraw(X2, Y2, model, 'non-linéaire')
+    Mdraw2(X2, Y2, model, 'non-lineaire')
+    print('erreur de reconstruction : ', reconstruction)
 #============================================================
 #               REAL DATA
 #============================================================
@@ -198,20 +205,23 @@ def analytique_mc(X,Y):
     w = np.linalg.solve(A,B)
     return w
 
-def adaline(X,Y,n=10000,epsilon=10**(-5), h=10**(-3)):
-    """Pour 10000 iterations avec epsilon = 10^-5 et h = 10 ^-3 on a 45 % d'accuracy """
+def adaline(X,Y,n=10000,epsilon=10**(-5)):
+    """Pour 10000 iterations avec epsilon = 10^-5 et h = 10 ^-3 on a 50 % d'accuracy """
     w = np.zeros(X.shape[1])
     for t in range(n):
         i = random.randint(0, len(X)-1)
         xi = X[i]
         yi = Y[i]
-        for j in range(0, len(w)):
-            new = w.copy()
-            new[j] +=  h
-            C = cout_carree(xi,yi,new) - cout_carree(xi,yi,w)
-            C /= h
-            #print('C :', C)
-            w[j] = w[j] - epsilon * C
+        d = 2 *np.dot( xi.T, (np.dot(xi,w) - yi))
+        #print('d :', d)
+        w = w - epsilon * d
+        # for j in range(0, len(w)):
+        #     new = w.copy()
+        #     new[j] +=  h
+        #     C = cout_carree(xi,yi,new) - cout_carree(xi,yi,w)
+        #     C /= h
+        #     #print('C :', C)
+        #     w[j] = w[j] - epsilon * C
     return w    
 
 def accuracy(X,Y,W):
@@ -251,8 +261,8 @@ def real_data():
     Xb = np.hstack((X,np.ones((N,1))))
     N2 = len(XT)
     XTb = np.hstack((XT,np.ones((N2,1))))
-    #w = adaline(Xb,Y)
-    w = analytique_mc(Xb,Y)
+    w = adaline(Xb,Y)
+    #w = analytique_mc(Xb,Y)
     acc = accuracy(XTb,YT,w)
     print('accuracy : ', acc)
     print('W :', w)
@@ -260,5 +270,5 @@ def real_data():
 #============================================================
 
 if __name__ == "__main__":
-    #partie1()
+    partie1()
     real_data()
